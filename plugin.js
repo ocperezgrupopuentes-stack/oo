@@ -97,11 +97,15 @@ document.getElementById("CreateWallBtn")
         await crearMuro(L, H, E);
 
         estado.textContent =
-            "Muro generado correctamente.";
+            "Muro generado correctamente."; 
+            
 
-    } catch (error) {
-        console.error("Error al crear muro:", error);
-        estado.textContent =
-            "Error al generar el muro. Revisa Script Output.";
-    }
-});
+} catch (error) {
+    const mensaje = error && error.message
+        ? error.message
+        : String(error);
+
+    console.error("Error al crear muro:", error);
+
+    estado.textContent = "ERROR: " + mensaje;
+}
