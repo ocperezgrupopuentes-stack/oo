@@ -21,6 +21,37 @@
             <label>Height</label>
         </div>
         <input id="CreateBlockBtn" type=button value="Create Cuboid" />
+
+<hr>
+
+<h3>FormIt AI Modeler - Muro</h3>
+<p>Crear muro con dimensiones en metros</p>
+
+<div>
+  <label>Largo (m)</label>
+  <input id="WallLength" type="number"
+         value="5" min="0.01" step="0.01">
+</div>
+
+<div>
+  <label>Altura (m)</label>
+  <input id="WallHeight" type="number"
+         value="2.70" min="0.01" step="0.01">
+</div>
+
+<div>
+  <label>Espesor (m)</label>
+  <input id="WallThickness" type="number"
+         value="0.15" min="0.01" step="0.01">
+</div>
+
+<p>
+  <button id="CreateWallBtn">
+    Crear muro 3D
+  </button>
+</p>
+
+<p id="WallStatus"></p>
         <!--Do not remove below scripts unless you know what you're doing-->
         <script type="text/javascript" src="https://formit3d.github.io/SharedPluginUtilities/FormIt.js"></script>
         <script type="text/javascript" src="https://formit3d.github.io/SharedPluginUtilities/FormItInterface.js"></script>
