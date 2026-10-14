@@ -14,3 +14,94 @@ document.getElementById("CreateBlockBtn").addEventListener("click", () => {
 
     createBlock(w,l,h);
 });
+
+/* FormIt AI Modeler - Muro V1 */
+
+// Convierte metros a unidades internas de FormIt
+async function convertirMetros(valor) {
+    const dato = await FormIt.StringConversion
+        .StringToLinearValue(`${valor} m`);
+
+    const numero = typeof dato === "number"
+        ? dato
+        : dato && dato.result;
+
+    if (!Number.isFinite(numero) ||
+        (dato && dato.success === false)) {
+        throw new Error("No se pudo convertir la medida");
+    }
+
+    return numero;
+}
+
+// Crear muro
+async function crearMuro(largo, altura, espesor) {
+
+    const L = await convertirMetros(largo);
+    const H = await convertirMetros(altura);
+    const E = await convertirMetros(espesor);
+
+    const histID =
+        await FormIt.GroupEdit.GetEditingHistoryID();
+
+    // Punto inferior del muro
+    const inicio = await WSM.Geom.Point3d(
+        0, 0, 0
+    );
+
+    // Punto superior opuesto
+    const final = await WSM.Geom.Point3d(
+        L, E, H
+    );
+
+    const muro = await WSM.APICreateBlock(
+        histID,
+        inicio,
+        final
+    );
+
+    console.log("Muro creado:", muro);
+    return muro;
+}
+
+// Boton de la interfaz
+document.getElementById("CreateWallBtn")
+    .addEventListener("click", async () => {
+
+    const estado =
+        document.getElementById("WallStatus");
+
+    const L = Number(
+        document.getElementById("WallLength").value
+    );
+
+    const H = Number(
+        document.getElementById("WallHeight").value
+    );
+
+    const E = Number(
+        document.getElementById("WallThickness").value
+    );
+
+    if (![L, H, E].every(
+        n => Number.isFinite(n) && n > 0
+    )) {
+        estado.textContent =
+            "Introduce dimensiones mayores que cero.";
+        return;
+    }
+
+    try {
+        estado.textContent = "Creando muro...";
+
+        await crearMuro(L, H, E);
+
+        estado.textContent =
+            "Muro generado correctamente.";
+
+    } catch (error) {
+        console.error("Error al crear muro:", error);
+        estado.textContent =
+            "Error al generar el muro. Revisa Script Output.";
+    }
+});
