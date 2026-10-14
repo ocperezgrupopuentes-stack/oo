@@ -15,23 +15,19 @@ document.getElementById("CreateBlockBtn").addEventListener("click", () => {
     createBlock(w,l,h);
 });
 
+
 /* FormIt AI Modeler - Muro V1 */
 
 // Convierte metros a unidades internas de FormIt
 async function convertirMetros(valor) {
-    const dato = await FormIt.StringConversion
-        .StringToLinearValue(`${valor} m`);
+    const metros = Number(valor);
 
-    const numero = typeof dato === "number"
-        ? dato
-        : dato && dato.result;
-
-    if (!Number.isFinite(numero) ||
-        (dato && dato.success === false)) {
-        throw new Error("No se pudo convertir la medida");
+    if (!Number.isFinite(metros) || metros <= 0) {
+        throw new Error("Medida no válida");
     }
 
-    return numero;
+    // Convertir metros a pies para la geometría WSM
+    return metros / 0.3048;
 }
 
 // Crear muro
@@ -97,15 +93,11 @@ document.getElementById("CreateWallBtn")
         await crearMuro(L, H, E);
 
         estado.textContent =
-            "Muro generado correctamente."; 
-            
+            "Muro generado correctamente.";
 
-} catch (error) {
-    const mensaje = error && error.message
-        ? error.message
-        : String(error);
-
-    console.error("Error al crear muro:", error);
-
-    estado.textContent = "ERROR: " + mensaje;
-}
+    } catch (error) {
+        console.error("Error al crear muro:", error);
+        estado.textContent =
+            "Error al generar el muro. Revisa Script Output.";
+    }
+});
