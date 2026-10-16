@@ -435,3 +435,330 @@ document.getElementById("CreateDoorRoomBtn")
     }
 });
 
+/* FORMIT AI MODELER V4
+   HABITACION + PUERTA + VENTANAS
+   Requiere v3Bloque() y v3m() de V3
+*/
+
+async function generarV4(d) {
+
+    const m = v3m;
+    const X = m(d.x);
+    const Y = m(d.y);
+    const Z = m(d.z);
+    const L = m(d.largo);
+    const A = m(d.ancho);
+    const H = m(d.altura);
+    const E = m(d.espesor);
+
+    const margen = m(0.02);
+    const hist =
+        await FormIt.GroupEdit.GetEditingHistoryID();
+
+    // Crear los cuatro muros independientes.
+    const muros = {};
+
+    muros.frontal = await v3Bloque(
+        hist, X, Y, Z,
+        X + L, Y + E, Z + H
+    );
+
+    muros.posterior = await v3Bloque(
+        hist, X, Y + A - E, Z,
+        X + L, Y + A, Z + H
+    );
+
+    muros.izquierdo = await v3Bloque(
+        hist, X, Y + E, Z,
+        X + E, Y + A - E, Z + H
+    );
+
+    muros.derecho = await v3Bloque(
+        hist, X + L - E, Y + E, Z,
+        X + L, Y + A - E, Z + H
+    );
+
+    // Organizar aberturas por muro.
+    const cortes = {
+        frontal: [],
+        posterior: [],
+        izquierdo: [],
+        derecho: []
+    };
+
+    // Crear el solido que atravesara cada muro.
+    async function prepararCorte(a) {
+
+        const offset = m(a.offset);
+        const ancho = m(a.ancho);
+        const abajo = Z + m(a.antepecho);
+        const arriba = abajo + m(a.alto);
+
+        const z1 = a.tipo === "puerta"
+            ? Z - margen : abajo;
+
+        let coords;
+
+        if (a.muro === "frontal") {
+            coords = [
+                X + offset, Y - margen, z1,
+                X + offset + ancho,
+                Y + E + margen, arriba
+            ];
+        }
+
+        if (a.muro === "posterior") {
+            coords = [
+                X + offset, Y + A - E - margen, z1,
+                X + offset + ancho,
+                Y + A + margen, arriba
+            ];
+        }
+
+        if (a.muro === "izquierdo") {
+            coords = [
+                X - margen, Y + offset, z1,
+                X + E + margen,
+                Y + offset + ancho, arriba
+            ];
+        }
+
+        if (a.muro === "derecho") {
+            coords = [
+                X + L - E - margen,
+                Y + offset, z1,
+                X + L + margen,
+                Y + offset + ancho, arriba
+            ];
+        }
+
+        const id = await v3Bloque(hist, ...coords);
+        cortes[a.muro].push(id);
+    }
+
+    // Puerta
+    await prepararCorte({
+        tipo: "puerta",
+        muro: d.puerta.muro,
+        ancho: d.puerta.ancho,
+        alto: d.puerta.alto,
+        offset: d.puerta.offset,
+        antepecho: 0
+    });
+
+    // Ventanas activas
+    for (const ventana of d.ventanas) {
+        await prepararCorte({
+            ...ventana,
+            tipo: "ventana"
+        });
+    }
+
+    // Realizar una sustraccion por muro.
+    let totalCortes = 0;
+
+    for (const lado of Object.keys(cortes)) {
+        const ids = cortes[lado];
+
+        if (ids.length === 0) continue;
+
+        await WSM.APISubtract(
+            hist,
+            muros[lado],
+            ids[0],
+            ids.slice(1)
+        );
+
+        totalCortes += ids.length;
+
+        console.log(
+            "Cortes ejecutados en",
+            lado, ids.length
+        );
+    }
+
+    return totalCortes;
+}
+
+
+// Leer valores del panel
+function v4Numero(id) {
+    const campo = document.getElementById(id);
+
+    if (!campo || campo.value.trim() === "") {
+        return NaN;
+    }
+
+    return Number(campo.value);
+}
+
+function v4Texto(id) {
+    return document.getElementById(id).value;
+}
+
+function v4Activo(id) {
+    return document.getElementById(id).checked;
+}
+
+
+// Validar dimensiones antes de modelar
+function validarV4(d) {
+
+    const numeros = [
+        d.largo, d.ancho, d.altura, d.espesor,
+        d.x, d.y, d.z,
+        d.puerta.ancho,
+        d.puerta.alto,
+        d.puerta.offset
+    ];
+
+    if (!numeros.every(Number.isFinite)) {
+        throw new Error("Hay medidas no validas.");
+    }
+
+    if (
+        d.largo <= 0 ||
+        d.ancho <= 0 ||
+        d.altura <= 0 ||
+        d.espesor <= 0 ||
+        d.espesor * 2 >= Math.min(d.largo, d.ancho)
+    ) {
+        throw new Error(
+            "Revisa las dimensiones de habitacion."
+        );
+    }
+
+    const aberturas = [
+        { ...d.puerta, antepecho: 0 },
+        ...d.ventanas
+    ];
+
+    for (const a of aberturas) {
+
+        const longitud =
+            a.muro === "frontal" ||
+            a.muro === "posterior"
+                ? d.largo : d.ancho;
+
+        if (![
+            a.ancho, a.alto,
+            a.offset, a.antepecho
+        ].every(Number.isFinite)) {
+            throw new Error("Medida de abertura no valida.");
+        }
+
+        if (
+            a.ancho <= 0 ||
+            a.alto <= 0 ||
+            a.antepecho < 0 ||
+            a.antepecho + a.alto >= d.altura
+        ) {
+            throw new Error(
+                "Altura de abertura fuera del muro."
+            );
+        }
+
+        // Mantener 5 cm adicionales en esquinas.
+        const minimo = d.espesor + 0.05;
+        const maximo = longitud - minimo;
+
+        if (
+            a.offset < minimo ||
+            a.offset + a.ancho > maximo
+        ) {
+            throw new Error(
+                "Abertura fuera de zona util: " + a.muro
+            );
+        }
+    }
+
+    // Evitar intersecciones entre aberturas.
+    for (let i = 0; i < aberturas.length; i++) {
+        for (let j = i + 1; j < aberturas.length; j++) {
+
+            const a = aberturas[i];
+            const b = aberturas[j];
+
+            if (a.muro !== b.muro) continue;
+
+            const horizontal =
+                a.offset < b.offset + b.ancho &&
+                b.offset < a.offset + a.ancho;
+
+            const vertical =
+                a.antepecho < b.antepecho + b.alto &&
+                b.antepecho < a.antepecho + a.alto;
+
+            if (horizontal && vertical) {
+                throw new Error(
+                    "Dos aberturas se superponen en " +
+                    a.muro
+                );
+            }
+        }
+    }
+}
+
+
+// Boton de generacion V4
+document.getElementById("V4CreateBtn")
+.addEventListener("click", async () => {
+
+    const estado =
+        document.getElementById("V4Status");
+
+    const datos = {
+        largo: v4Numero("RoomLength"),
+        ancho: v4Numero("RoomWidth"),
+        altura: v4Numero("RoomHeight"),
+        espesor: v4Numero("RoomThickness"),
+        x: v4Numero("RoomX"),
+        y: v4Numero("RoomY"),
+        z: v4Numero("RoomZ"),
+
+        puerta: {
+            muro: v4Texto("V4DoorWall"),
+            ancho: v4Numero("DoorWidth"),
+            alto: v4Numero("DoorHeight"),
+            offset: v4Numero("DoorOffset")
+        },
+
+        ventanas: []
+    };
+
+    for (const n of [1, 2]) {
+        if (!v4Activo("V4W" + n + "Active")) {
+            continue;
+        }
+
+        datos.ventanas.push({
+            muro: v4Texto("V4W" + n + "Wall"),
+            ancho: v4Numero("V4W" + n + "Width"),
+            alto: v4Numero("V4W" + n + "Height"),
+            antepecho: v4Numero("V4W" + n + "Sill"),
+            offset: v4Numero("V4W" + n + "Offset")
+        });
+    }
+
+    try {
+        validarV4(datos);
+
+        estado.textContent =
+            "Generando muros y aberturas...";
+
+        const cantidad = await generarV4(datos);
+
+        estado.textContent =
+            cantidad + " cortes ejecutados. " +
+            "Verifica el resultado en FormIt.";
+
+    } catch (error) {
+        console.error("Error V4:", error);
+
+        estado.textContent =
+            "ERROR: " + (
+                error.message || String(error)
+            );
+    }
+});
+
