@@ -16,88 +16,257 @@ document.getElementById("CreateBlockBtn").addEventListener("click", () => {
 });
 
 
-/* FormIt AI Modeler - Muro V1 */
 
-// Convierte metros a unidades internas de FormIt
-async function convertirMetros(valor) {
-    const metros = Number(valor);
+/*
+=======================================
+FORMIT AI MODELER V2
+Generador de muros y habitaciones
+=======================================
+*/
 
-    if (!Number.isFinite(metros) || metros <= 0) {
-        throw new Error("Medida no válida");
-    }
+// CONVERSION DE METROS A UNIDADES WSM
 
-    // Convertir metros a pies para la geometría WSM
-    return metros / 0.3048;
+function aiMetros(valor) {
+    return Number(valor) / 0.3048;
 }
 
-// Crear muro
-async function crearMuro(largo, altura, espesor) {
+// LEER VALORES DE LA INTERFAZ
 
-    const L = await convertirMetros(largo);
-    const H = await convertirMetros(altura);
-    const E = await convertirMetros(espesor);
+function aiLeer(id) {
+    return Number(
+        document.getElementById(id).value
+    );
+}
 
-    const histID =
+// CREAR BLOQUE 3D
+
+async function aiCrearBloque(
+    historial,
+    x1, y1, z1,
+    x2, y2, z2
+) {
+
+    const punto1 = await WSM.Geom.Point3d(
+        x1, y1, z1
+    );
+
+    const punto2 = await WSM.Geom.Point3d(
+        x2, y2, z2
+    );
+
+    const resultado = await WSM.APICreateBlock(
+        historial,
+        punto1,
+        punto2
+    );
+
+    console.log("Bloque generado:", resultado);
+
+    return resultado;
+}
+
+/*
+=======================================
+V1 - GENERADOR DE MUROS
+=======================================
+*/
+
+async function aiCrearMuro(
+    largo,
+    altura,
+    espesor
+) {
+
+    const L = aiMetros(largo);
+    const H = aiMetros(altura);
+    const E = aiMetros(espesor);
+
+    const historial =
         await FormIt.GroupEdit.GetEditingHistoryID();
 
-    // Punto inferior del muro
-    const inicio = await WSM.Geom.Point3d(
-        0, 0, 0
-    );
-
-    // Punto superior opuesto
-    const final = await WSM.Geom.Point3d(
+    return await aiCrearBloque(
+        historial,
+        0, 0, 0,
         L, E, H
     );
-
-    const muro = await WSM.APICreateBlock(
-        histID,
-        inicio,
-        final
-    );
-
-    console.log("Muro creado:", muro);
-    return muro;
 }
 
-// Boton de la interfaz
+// BOTON GENERAR MURO
+
 document.getElementById("CreateWallBtn")
-    .addEventListener("click", async () => {
+    .addEventListener("click", async function () {
+
+    const L = aiLeer("WallLength");
+    const H = aiLeer("WallHeight");
+    const E = aiLeer("WallThickness");
 
     const estado =
         document.getElementById("WallStatus");
-
-    const L = Number(
-        document.getElementById("WallLength").value
-    );
-
-    const H = Number(
-        document.getElementById("WallHeight").value
-    );
-
-    const E = Number(
-        document.getElementById("WallThickness").value
-    );
 
     if (![L, H, E].every(
         n => Number.isFinite(n) && n > 0
     )) {
         estado.textContent =
-            "Introduce dimensiones mayores que cero.";
+            "ERROR: Dimensiones invalidas.";
         return;
     }
 
     try {
-        estado.textContent = "Creando muro...";
 
-        await crearMuro(L, H, E);
+        estado.textContent = "Generando muro...";
+
+        await aiCrearMuro(L, H, E);
 
         estado.textContent =
             "Muro generado correctamente.";
 
     } catch (error) {
-        console.error("Error al crear muro:", error);
+
+        console.error("Error muro:", error);
+
         estado.textContent =
-            "Error al generar el muro. Revisa Script Output.";
+            "ERROR: " + (error.message || String(error));
     }
+
+});
+
+/*
+=======================================
+V2 - GENERADOR DE HABITACIONES
+=======================================
+*/
+
+async function aiCrearHabitacion(
+    largo,
+    ancho,
+    altura,
+    espesor,
+    x, y, z
+) {
+
+    // CONVERTIR MEDIDAS
+
+    const L = aiMetros(largo);
+    const A = aiMetros(ancho);
+    const H = aiMetros(altura);
+    const E = aiMetros(espesor);
+
+    const X = aiMetros(x);
+    const Y = aiMetros(y);
+    const Z = aiMetros(z);
+
+    // OBTENER HISTORIAL ACTIVO
+
+    const historial =
+        await FormIt.GroupEdit.GetEditingHistoryID();
+
+    // FUNCION INTERNA PARA CREAR CADA MURO
+
+    async function muro(x1, y1, x2, y2) {
+
+        return await aiCrearBloque(
+            historial,
+            x1, y1, Z,
+            x2, y2, Z + H
+        );
+
+    }
+
+    // MURO FRONTAL
+
+    await muro(
+        X, Y,
+        X + L, Y + E
+    );
+
+    // MURO POSTERIOR
+
+    await muro(
+        X, Y + A - E,
+        X + L, Y + A
+    );
+
+    // MURO IZQUIERDO
+
+    await muro(
+        X, Y + E,
+        X + E, Y + A - E
+    );
+
+    // MURO DERECHO
+
+    await muro(
+        X + L - E, Y + E,
+        X + L, Y + A - E
+    );
+
+    console.log(
+        "Los cuatro muros fueron procesados."
+    );
+}
+
+/*
+=======================================
+BOTON GENERAR HABITACION
+=======================================
+*/
+
+document.getElementById("CreateRoomBtn")
+    .addEventListener("click", async function () {
+
+    const L = aiLeer("RoomLength");
+    const A = aiLeer("RoomWidth");
+    const H = aiLeer("RoomHeight");
+    const E = aiLeer("RoomThickness");
+
+    const X = aiLeer("RoomX");
+    const Y = aiLeer("RoomY");
+    const Z = aiLeer("RoomZ");
+
+    const estado =
+        document.getElementById("RoomStatus");
+
+    // VALIDAR DATOS
+
+    if (
+        ![L, A, H, E, X, Y, Z].every(Number.isFinite) ||
+        L <= 0 ||
+        A <= 0 ||
+        H <= 0 ||
+        E <= 0 ||
+        E * 2 >= Math.min(L, A)
+    ) {
+
+        estado.textContent =
+            "ERROR: Verifica las dimensiones.";
+
+        return;
+    }
+
+    try {
+
+        estado.textContent =
+            "Generando habitacion...";
+
+        await aiCrearHabitacion(
+            L, A, H, E,
+            X, Y, Z
+        );
+
+        estado.textContent =
+            "Habitacion creada correctamente.";
+
+    } catch (error) {
+
+        console.error(
+            "Error habitacion:", error
+        );
+
+        estado.textContent =
+            "ERROR: " + (
+                error.message || String(error)
+            );
+
+    }
+
 });
