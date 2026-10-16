@@ -63,3 +63,35 @@
         padding: 6px;
         outline: none;
     }
+/* FORMIT AI MODELER - SCROLL VERTICAL */
+
+html {
+    height: 100%;
+}
+
+body {
+    height: 100vh !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box;
+    padding-bottom: 30px;
+}
+
+/* Barra de desplazamiento */
+
+body::-webkit-scrollbar {
+    width: 12px;
+}
+
+body::-webkit-scrollbar-track {
+    background: #e8e8e8;
+}
+
+body::-webkit-scrollbar-thumb {
+    background: #888888;
+    border-radius: 6px;
+}
+
+body::-webkit-scrollbar-thumb:hover {
+    background: #555555;
+}
